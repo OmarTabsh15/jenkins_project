@@ -28,17 +28,38 @@ pipeline {
                 }
             }
         }
+        stage('Coverage') {
+            steps {
+                script {
+                    // Run the tests under coverage.py and generate console, HTML and XML reports
+                    sh ". ${VIRTUAL_ENV}/bin/activate && coverage run --source=app -m pytest"
+                    sh ". ${VIRTUAL_ENV}/bin/activate && coverage report -m"
+                    sh ". ${VIRTUAL_ENV}/bin/activate && coverage html && coverage xml"
+                }
+            }
+        }
+        stage('Security Scan') {
+            steps {
+                script {
+                    // Scan the source code with bandit; the stage fails if any vulnerability is found
+                    sh ". ${VIRTUAL_ENV}/bin/activate && bandit -r . -x ./${VIRTUAL_ENV} -f html -o bandit-report.html || true"
+                    sh ". ${VIRTUAL_ENV}/bin/activate && bandit -r . -x ./${VIRTUAL_ENV}"
+                }
+            }
+        }
         stage('Deploy') {
             steps {
                 script {
-                    // Deployment logic, e.g., pushing to a remote server
+                    // Local deployment: copies the app to a release folder and smoke-tests it
                     echo "Deploying application..."
+                    sh "bash deploy.sh"
                 }
             }
         }
     }
     post {
         always {
+            archiveArtifacts artifacts: 'htmlcov/**, coverage.xml, bandit-report.html', allowEmptyArchive: true
             cleanWs()
         }
     }
